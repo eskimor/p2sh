@@ -6,4 +6,7 @@ edition = "2018"
 
 [dependencies]
 termios = "0.3.2"
-libp2p = "0.18.0"
+libp2p = {version= "0.17.0", path= "../rust-libp2p"}
+async-std = "1.5.0"
+futures = "0.3.4"
+env_logger = "0.7.1"
