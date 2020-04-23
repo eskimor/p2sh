@@ -68,6 +68,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 },
                 KademliaEvent::GetClosestPeersResult(peers_result) => {
                     println!("Found closest peers: {:?}", &peers_result);
+                    for p in self.kademlia.kbuckets_entries() {
+                        println!("Entry in our buckets: {:?}", p);
+                    }
                 }
                 KademliaEvent::GetRecordResult(Err(err)) => {
                     eprintln!("Failed to get record: {:?}", err);
