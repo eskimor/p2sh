@@ -47,6 +47,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         fn inject_event(&mut self, event: MdnsEvent) {
             if let MdnsEvent::Discovered(list) = event {
                 for (peer_id, multiaddr) in list {
+                    println!("MDNS, discovered peer {} with address {}!", peer_id, multiaddr);
                     self.kademlia.add_address(&peer_id, multiaddr);
                 }
             }
@@ -71,7 +72,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                     for p in self.kademlia.kbuckets_entries() {
                         println!("Entry in our buckets: {:?}", p);
                     }
-                }
+                },
+                KademliaEvent::Discovered { peer_id, addresses, ty } => {
+                    println!("Discovered peer: {}", peer_id);
+                    println!("Addresses of that peer: {:?}", addresses);
+                    println!("Connection status: {:?}", ty);
+                },
                 KademliaEvent::GetRecordResult(Err(err)) => {
                     eprintln!("Failed to get record: {:?}", err);
                 }
