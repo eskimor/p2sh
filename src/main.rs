@@ -1,118 +1,114 @@
+//! A basic key value store demonstrating libp2p and the mDNS and Kademlia protocols.
+//!
+//! 1. Using two terminal windows, start two instances. If you local network
+//!    allows mDNS, they will automatically connect.
+//!
+//! 2. Type `PUT my-key my-value` in terminal one and hit return.
+//!
+//! 3. Type `GET my-key` in terminal two and hit return.
+//!
+//! 4. Close with Ctrl-c.
+
 use async_std::{io, task};
-use futures::{future, prelude::*};
-use std::os::unix::io::RawFd;
+use futures::prelude::*;
+use libp2p::kad::record::store::MemoryStore;
+use libp2p::kad::{record::Key, Kademlia, KademliaEvent, PutRecordOk, Quorum, Record};
 use libp2p::{
-    Multiaddr,
+    NetworkBehaviour,
     PeerId,
     Swarm,
-    NetworkBehaviour,
+    build_development_transport,
     identity,
-    floodsub::{self, Floodsub, FloodsubEvent},
     mdns::{Mdns, MdnsEvent},
     swarm::NetworkBehaviourEventProcess
 };
-use std::{
-    path::{
-        Path,
-        PathBuf
-    },
-    process,
-    format,
-    error::Error,
-    task::{Context, Poll}
-};
-use termios::{Termios, ICANON, VTIME, VMIN};
+use std::{error::Error, task::{Context, Poll}};
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
 
-    // Create a random PeerId
-    // TODO: Store key and only generate if not existing.
+    // Create a random key for ourselves.
     let local_key = identity::Keypair::generate_ed25519();
     let local_peer_id = PeerId::from(local_key.public());
-    println!("Local peer id: {:?}", local_peer_id);
+    println!("Our peer id: {}", &local_peer_id);
 
-    // Set up a an encrypted DNS-enabled TCP Transport over the Mplex and Yamux protocols
-    let transport = libp2p::build_development_transport(local_key)?;
+    // Set up a an encrypted DNS-enabled TCP Transport over the Mplex protocol.
+    let transport = build_development_transport(local_key)?;
 
-    // Create a Floodsub topic
-    let floodsub_topic = floodsub::Topic::new("chat");
-
-    // We create a custom network behaviour that combines floodsub and mDNS.
-    // In the future, we want to improve libp2p to make this easier to do.
-    // Use the derive to generate delegating NetworkBehaviour impl and require the
-    // NetworkBehaviourEventProcess implementations below.
+    // We create a custom network behaviour that combines Kademlia and mDNS.
     #[derive(NetworkBehaviour)]
     struct MyBehaviour {
-        floodsub: Floodsub,
-        mdns: Mdns,
-
-        // Struct fields which do not implement NetworkBehaviour need to be ignored
-        #[behaviour(ignore)]
-        #[allow(dead_code)]
-        ignored_member: bool,
-    }
-
-    impl NetworkBehaviourEventProcess<FloodsubEvent> for MyBehaviour {
-        // Called when `floodsub` produces an event.
-        fn inject_event(&mut self, message: FloodsubEvent) {
-            if let FloodsubEvent::Message(message) = message {
-                println!("Received: '{:?}' from {:?}", String::from_utf8_lossy(&message.data), message.source);
-            }
-        }
+        kademlia: Kademlia<MemoryStore>,
+        mdns: Mdns
     }
 
     impl NetworkBehaviourEventProcess<MdnsEvent> for MyBehaviour {
         // Called when `mdns` produces an event.
         fn inject_event(&mut self, event: MdnsEvent) {
-            match event {
-                MdnsEvent::Discovered(list) =>
-                    for (peer, _) in list {
-                        self.floodsub.add_node_to_partial_view(peer);
-                    }
-                MdnsEvent::Expired(list) =>
-                    for (peer, _) in list {
-                        if !self.mdns.has_node(&peer) {
-                            self.floodsub.remove_node_from_partial_view(&peer);
-                        }
-                    }
+            if let MdnsEvent::Discovered(list) = event {
+                for (peer_id, multiaddr) in list {
+                    self.kademlia.add_address(&peer_id, multiaddr);
+                }
             }
         }
     }
 
-    // Create a Swarm to manage peers and events
-    let mut swarm = {
-        let mdns = Mdns::new()?;
-        let mut behaviour = MyBehaviour {
-            floodsub: Floodsub::new(local_peer_id.clone()),
-            mdns,
-            ignored_member: false,
-        };
+    impl NetworkBehaviourEventProcess<KademliaEvent> for MyBehaviour {
+        // Called when `kademlia` produces an event.
+        fn inject_event(&mut self, message: KademliaEvent) {
+            match message {
+                KademliaEvent::GetRecordResult(Ok(result)) => {
+                    for Record { key, value, .. } in result.records {
+                        println!(
+                            "Got record {:?} {:?}",
+                            std::str::from_utf8(key.as_ref()).unwrap(),
+                            std::str::from_utf8(&value).unwrap(),
+                        );
+                    }
+                },
+                KademliaEvent::GetClosestPeersResult(peers_result) => {
+                    println!("Found closest peers: {:?}", &peers_result);
+                }
+                KademliaEvent::GetRecordResult(Err(err)) => {
+                    eprintln!("Failed to get record: {:?}", err);
+                }
+                KademliaEvent::PutRecordResult(Ok(PutRecordOk { key })) => {
+                    println!(
+                        "Successfully put record {:?}",
+                        std::str::from_utf8(key.as_ref()).unwrap()
+                    );
+                }
+                KademliaEvent::PutRecordResult(Err(err)) => {
+                    eprintln!("Failed to put record: {:?}", err);
+                }
+                _ => {}
+            }
+        }
+    }
 
-        behaviour.floodsub.subscribe(floodsub_topic.clone());
+    // Create a swarm to manage peers and events.
+    let mut swarm = {
+        // Create a Kademlia behaviour.
+        let store = MemoryStore::new(local_peer_id.clone());
+        let kademlia = Kademlia::new(local_peer_id.clone(), store);
+        let mdns = Mdns::new()?;
+        let behaviour = MyBehaviour { kademlia, mdns };
         Swarm::new(transport, behaviour, local_peer_id)
     };
-
-    // Reach out to another node if specified
-    if let Some(to_dial) = std::env::args().nth(1) {
-        let addr: Multiaddr = to_dial.parse()?;
-        Swarm::dial_addr(&mut swarm, addr)?;
-        println!("Dialed {:?}", to_dial)
-    }
 
     // Read full lines from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines();
 
-    // Listen on all interfaces and whatever port the OS assigns
+    // Listen on all interfaces and whatever port the OS assigns.
     Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    // Kick it off
+    // Kick it off.
     let mut listening = false;
     task::block_on(future::poll_fn(move |cx: &mut Context| {
         loop {
             match stdin.try_poll_next_unpin(cx)? {
-                Poll::Ready(Some(line)) => swarm.floodsub.publish(floodsub_topic.clone(), line.as_bytes()),
-            Poll::Ready(None) => panic!("Stdin closed"),
+                Poll::Ready(Some(line)) => handle_input_line(&mut swarm.kademlia, line),
+                Poll::Ready(None) => panic!("Stdin closed"),
                 Poll::Pending => break
             }
         }
@@ -122,8 +118,8 @@ fn main() -> Result<(), Box<dyn Error>> {
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Pending => {
                     if !listening {
-                        for addr in Swarm::listeners(&swarm) {
-                            println!("Listening on {:?}", addr);
+                        if let Some(a) = Swarm::listeners(&swarm).next() {
+                            println!("Listening on {:?}", a);
                             listening = true;
                         }
                     }
@@ -133,6 +129,56 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
         Poll::Pending
     }))
+}
+
+fn handle_input_line(kademlia: &mut Kademlia<MemoryStore>, line: String) {
+    let mut args = line.split(" ");
+
+    match args.next() {
+        Some("GET") => {
+            let key = {
+                match args.next() {
+                    Some(key) => Key::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            kademlia.get_record(&key, Quorum::One);
+            kademlia.get_closest_peers(key);
+        }
+        Some("PUT") => {
+            let key = {
+                match args.next() {
+                    Some(key) => Key::new(&key),
+                    None => {
+                        eprintln!("Expected key");
+                        return;
+                    }
+                }
+            };
+            let value = {
+                match args.next() {
+                    Some(value) => value.as_bytes().to_vec(),
+                    None => {
+                        eprintln!("Expected value");
+                        return;
+                    }
+                }
+            };
+            let record = Record {
+                key,
+                value,
+                publisher: None,
+                expires: None,
+            };
+            kademlia.put_record(record, Quorum::One);
+        }
+        _ => {
+            eprintln!("expected GET or PUT");
+        }
+    }
 }
 
 // fn main() {
