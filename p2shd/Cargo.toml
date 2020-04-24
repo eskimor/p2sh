@@ -1,0 +1,16 @@
+[package]
+name = "p2shd"
+version = "0.1.0"
+authors = ["Robert Klotzner <robert.klotzner@gmx.at>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = "2.33.0"
+structopt = "0.3.14"
+libp2p = {version= "0.18", path= "../../rust-libp2p"}
+async-std = "1.5.0"
+futures = "0.3.4"
+env_logger = "0.7.1"
+anyhow = "1.0.28"
