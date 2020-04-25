@@ -1521,6 +1521,7 @@ dependencies = [
  "futures",
  "libp2p",
  "structopt",
+ "thiserror",
 ]
 
 [[package]]

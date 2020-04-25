@@ -28,6 +28,8 @@ use std::{
     task::{Context, Poll},
 };
 use structopt::StructOpt;
+use thiserror::Error;
+
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "p2shd")]
@@ -40,6 +42,32 @@ struct Config {
     key_file: PathBuf,
 }
 
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error(
+    "Invalid keyfile '{0}'.
+
+Make sure '{0}' is a valid ED25519 keypair,
+which is a private + public key concatenated in binary format.
+
+If you don't mind the node to have a new identity,
+you can simply delete the file to have p2shd
+generate a valid one for you.
+    "
+    )]
+    DecodeKeypair(PathBuf),
+    #[error(
+    "Accessing the keypair at '{0}' failed."
+    )]
+    AccessKeypair(PathBuf),
+    #[error("Reading keyfile '{0}' failed.")]
+    ReadKeypair(PathBuf),
+    #[error("Writing keyfile '{0}' failed.")]
+    WriteKeypair(PathBuf),
+    #[error("Setting permissions for keyfile '{0}' failed.")]
+    SetPermissions(PathBuf),
+}
+
 /// Load key from given file path (if present) or generate one and store it.
 ///
 /// # Errors
@@ -50,22 +78,22 @@ struct Config {
 ///
 /// If the given file exists but does not contain a valid Ed25519 key.
 pub fn gen_or_get_key(key_path: &Path) -> Result<ed25519::Keypair> {
-    may_read_key(key_path)?.map_or_else(|| gen_and_write_key(key_path), Ok)
+    let key_exists = path_exists(key_path)
+        .with_context(|| Error::AccessKeypair(PathBuf::from(key_path)))?;
+
+    if key_exists {
+        read_key(key_path)
+    } else {
+        gen_and_write_key(key_path)
+    }
 }
 
-/// Read key if key file exists.
-fn may_read_key(key_path: &Path) -> Result<Option<ed25519::Keypair>> {
-    // Use then, when it exists: https://doc.rust-lang.org/std/primitive.bool.html#method.then
-    if key_path.exists() {
-        let mut raw = fs::read(key_path)
-            .with_context(|| format!("Reading keyfile {} failed!", key_path.display()))?;
-
-        ed25519::Keypair::decode(&mut raw)
-            .map(Some)
-            .with_context(|| format!("Invalid keyfile {}!", key_path.display()))
-    } else {
-        Ok(None)
-    }
+/// Read key file.
+fn read_key(key_path: &Path) -> Result<ed25519::Keypair> {
+    let mut raw = fs::read(key_path)
+        .with_context(|| Error::ReadKeypair(PathBuf::from(key_path)))?;
+    ed25519::Keypair::decode(&mut raw)
+        .with_context(|| Error::DecodeKeypair(PathBuf::from(key_path)))
 }
 
 /// Generate a key and write it to the file given by path.
@@ -73,15 +101,39 @@ fn gen_and_write_key(key_path: &Path) -> Result<ed25519::Keypair> {
     let key = ed25519::Keypair::generate();
     let encoded: &[u8] = &key.encode();
     fs::write(key_path, encoded)
-        .with_context(|| format!("Writting keyfile {} failed!", key_path.display()))?;
+        .with_context(|| Error::WriteKeypair(PathBuf::from(key_path)))?;
     // Only user should be able to read the file:
-    fs::set_permissions(key_path, PermissionsExt::from_mode(0o400))?;
+    fs::set_permissions(key_path, PermissionsExt::from_mode(0o400))
+        .with_context(|| Error::SetPermissions(PathBuf::from(key_path)))?;
     Ok(key)
 }
 
+/// Check whether a path exists.
+///
+/// In contrast to Path::exists() this function really checks whether the path exists, instead of
+/// just returning false in case of any error, we only return false on `NotFound`, on all other
+/// errors we return an error.
+///
+/// This improves reporting errors early and more correctly. E.g. Don't tell user that a write
+/// failed, when in reality a a faild read should have been reported.
+fn path_exists(key_path: &Path) -> io::Result<bool> {
+    match fs::metadata(key_path) {
+        Ok(_) => Ok(true),
+        Err(err) => {
+            if err.kind() == io::ErrorKind::NotFound {
+                Ok(false)
+            } else {
+                Err(err)
+            }
+        }
+    }
+}
+
 fn create_config_dir(config_path: &Path) -> Result<()> {
-    fs::create_dir_all(config_path)?;
-    fs::set_permissions(config_path, PermissionsExt::from_mode(0o700))?;
+    if !config_path.exists() {
+        fs::create_dir_all(config_path)?;
+        fs::set_permissions(config_path, PermissionsExt::from_mode(0o700))?;
+    }
     Ok(())
 }
 
