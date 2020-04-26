@@ -51,7 +51,7 @@ impl Config {
             None => {
                 [self.config_dir.as_path(), Path::new("node_key")].iter().collect()
             }
-            Some(key_file) => key_file
+            Some(key_file) => key_file.clone()
         }
     }
 }
