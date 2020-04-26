@@ -38,8 +38,22 @@ struct Config {
     /// current directory.
     #[structopt(long, parse(from_os_str), default_value = ".p2shd")]
     config_dir: PathBuf,
-    #[structopt(long, parse(from_os_str), default_value = ".p2shd/node_key")]
-    key_file: PathBuf,
+    /// Path to the file storing our Ed25519 keypair. A file named "node_key" in `config_dir`
+    /// will be used.
+    #[structopt(long, parse(from_os_str))]
+    key_file: Option<PathBuf>,
+}
+
+impl Config {
+    /// Get the configured key_file, picking a default if not specified.
+    fn get_key_file (&self) -> PathBuf {
+        match &self.key_file {
+            None => {
+                [self.config_dir.as_path(), Path::new("node_key")].iter().collect()
+            }
+            Some(key_file) => key_file
+        }
+    }
 }
 
 #[derive(Error, Debug)]
@@ -144,7 +158,7 @@ fn main() -> Result<()> {
     create_config_dir(&cfg.config_dir)?;
 
     // Create a random key for ourselves.
-    let local_key = identity::Keypair::Ed25519(gen_or_get_key(&cfg.key_file)?);
+    let local_key = identity::Keypair::Ed25519(gen_or_get_key(&cfg.get_key_file())?);
     let local_peer_id = PeerId::from(local_key.public());
     println!("Our peer id: {}", &local_peer_id);
 
