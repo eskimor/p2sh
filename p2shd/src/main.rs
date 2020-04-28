@@ -9,37 +9,32 @@
 //!
 //! 4. Close with Ctrl-c.
 
-use anyhow::{Context as AnyhowContext, Result};
-use async_std::{io, task};
-use futures::prelude::*;
-use libp2p::kad::record::store::MemoryStore;
-use libp2p::kad::{record::Key, Kademlia, KademliaEvent, PutRecordOk, Quorum, Record};
-use libp2p::{
-    build_development_transport, identity,
-    identity::ed25519,
-    mdns::{Mdns, MdnsEvent},
-    swarm::NetworkBehaviourEventProcess,
-    NetworkBehaviour, PeerId, Swarm,
+use {
+    anyhow,
+    anyhow::Result,
+    async_std::{io, task},
+    futures::prelude::*,
+    libp2p::{
+        build_development_transport,
+        kad::record::store::MemoryStore,
+        kad::{record::Key, Kademlia, KademliaEvent, PutRecordOk, Quorum, Record},
+        mdns::{Mdns, MdnsEvent},
+        swarm::NetworkBehaviourEventProcess,
+        NetworkBehaviour, PeerId, Swarm,
+    },
+    std::task::{Context, Poll},
+    structopt::StructOpt,
 };
-use std::os::unix::fs::PermissionsExt;
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    task::{Context, Poll},
-};
-use structopt::StructOpt;
-use thiserror::Error;
 
-use config::Config;
-
+use p2shd::{config, config::Config};
 
 fn main() -> Result<()> {
     env_logger::init();
 
-    let cfg = Config::new(from_args());
+    let cfg = Config::new(config::Opts::from_args())?;
 
     // Create a random key for ourselves.
-    let local_key = cfg.get_node_key();
+    let local_key = cfg.get_node_key()?;
     let local_peer_id = PeerId::from(local_key.public());
     println!("Our peer id: {}", &local_peer_id);
 
@@ -160,7 +155,7 @@ fn main() -> Result<()> {
 }
 
 fn handle_input_line(kademlia: &mut Kademlia<MemoryStore>, line: String) {
-    let mut args = line.split(" ");
+    let mut args = line.split(' ');
 
     match args.next() {
         Some("GET") => {
