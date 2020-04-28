@@ -30,135 +30,16 @@ use std::{
 use structopt::StructOpt;
 use thiserror::Error;
 
+use config::Config;
 
-#[derive(StructOpt, Debug)]
-#[structopt(name = "p2shd")]
-struct Config {
-    /// The directory to read configuation files from. Defaults to the '.p2shd' directory in the
-    /// current directory.
-    #[structopt(long, parse(from_os_str), default_value = ".p2shd")]
-    config_dir: PathBuf,
-    /// Path to the file storing our Ed25519 keypair. A file named "node_key" in `config_dir`
-    /// will be used.
-    #[structopt(long, parse(from_os_str))]
-    key_file: Option<PathBuf>,
-}
-
-impl Config {
-    /// Get the configured key_file, picking a default if not specified.
-    fn get_key_file (&self) -> PathBuf {
-        match &self.key_file {
-            None => {
-                [self.config_dir.as_path(), Path::new("node_key")].iter().collect()
-            }
-            Some(key_file) => key_file.clone()
-        }
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum Error {
-    #[error(
-    "Invalid keyfile '{0}'.
-
-Make sure '{0}' is a valid ED25519 keypair,
-which is a private + public key concatenated in binary format.
-
-If you don't mind the node to have a new identity,
-you can simply delete the file to have p2shd
-generate a valid one for you.
-    "
-    )]
-    DecodeKeypair(PathBuf),
-    #[error(
-    "Accessing the keypair at '{0}' failed."
-    )]
-    AccessKeypair(PathBuf),
-    #[error("Reading keyfile '{0}' failed.")]
-    ReadKeypair(PathBuf),
-    #[error("Writing keyfile '{0}' failed.")]
-    WriteKeypair(PathBuf),
-    #[error("Setting permissions for keyfile '{0}' failed.")]
-    SetPermissions(PathBuf),
-}
-
-/// Load key from given file path (if present) or generate one and store it.
-///
-/// # Errors
-///
-/// 1. File cannot be read for other reasons than "Not Found".
-/// 3. Decoding of key fails.
-/// 2. File cannot be written.
-///
-/// If the given file exists but does not contain a valid Ed25519 key.
-pub fn gen_or_get_key(key_path: &Path) -> Result<ed25519::Keypair> {
-    let key_exists = path_exists(key_path)
-        .with_context(|| Error::AccessKeypair(PathBuf::from(key_path)))?;
-
-    if key_exists {
-        read_key(key_path)
-    } else {
-        gen_and_write_key(key_path)
-    }
-}
-
-/// Read key file.
-fn read_key(key_path: &Path) -> Result<ed25519::Keypair> {
-    let mut raw = fs::read(key_path)
-        .with_context(|| Error::ReadKeypair(PathBuf::from(key_path)))?;
-    ed25519::Keypair::decode(&mut raw)
-        .with_context(|| Error::DecodeKeypair(PathBuf::from(key_path)))
-}
-
-/// Generate a key and write it to the file given by path.
-fn gen_and_write_key(key_path: &Path) -> Result<ed25519::Keypair> {
-    let key = ed25519::Keypair::generate();
-    let encoded: &[u8] = &key.encode();
-    fs::write(key_path, encoded)
-        .with_context(|| Error::WriteKeypair(PathBuf::from(key_path)))?;
-    // Only user should be able to read the file:
-    fs::set_permissions(key_path, PermissionsExt::from_mode(0o400))
-        .with_context(|| Error::SetPermissions(PathBuf::from(key_path)))?;
-    Ok(key)
-}
-
-/// Check whether a path exists.
-///
-/// In contrast to Path::exists() this function really checks whether the path exists, instead of
-/// just returning false in case of any error, we only return false on `NotFound`, on all other
-/// errors we return an error.
-///
-/// This improves reporting errors early and more correctly. E.g. Don't tell user that a write
-/// failed, when in reality a a faild read should have been reported.
-fn path_exists(key_path: &Path) -> io::Result<bool> {
-    match fs::metadata(key_path) {
-        Ok(_) => Ok(true),
-        Err(err) => {
-            if err.kind() == io::ErrorKind::NotFound {
-                Ok(false)
-            } else {
-                Err(err)
-            }
-        }
-    }
-}
-
-fn create_config_dir(config_path: &Path) -> Result<()> {
-    if !config_path.exists() {
-        fs::create_dir_all(config_path)?;
-        fs::set_permissions(config_path, PermissionsExt::from_mode(0o700))?;
-    }
-    Ok(())
-}
 
 fn main() -> Result<()> {
     env_logger::init();
 
-    let cfg = Config::from_args();
-    create_config_dir(&cfg.config_dir)?;
+    let cfg = Config::new(from_args());
 
     // Create a random key for ourselves.
-    let local_key = identity::Keypair::Ed25519(gen_or_get_key(&cfg.get_key_file())?);
+    let local_key = cfg.get_node_key();
     let local_peer_id = PeerId::from(local_key.public());
     println!("Our peer id: {}", &local_peer_id);
 
