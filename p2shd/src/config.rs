@@ -14,23 +14,26 @@ use structopt::StructOpt;
 mod error;
 
 #[derive(StructOpt, Debug)]
-#[structopt(name = "p2shd")]
 /// Command line options.
 pub struct Opts {
-    /// The directory to read configuation files from. Defaults to the '.p2shd'
-    /// directory in the current directory.
+    /// The directory to read configuation files from. 
     #[structopt(long, parse(from_os_str), default_value = ".p2shd")]
     config_dir: PathBuf,
 
-    /// Path to the file storing our Ed25519 keypair. A file named "node_key" in
+    /// Path to the file storing our Ed25519 keypair. If not given, a file named "node_key" in
     /// `config_dir` will be used.
     #[structopt(long, parse(from_os_str))]
     key_file: Option<PathBuf>,
+
+    /// Peer id of the remote node to connect to. If not given, this program will just print our
+    /// own peer id and exit.
+    #[structopt()]
+    pub remote_id: Option<libp2p::PeerId>,
 }
 
 /// Runtime configuration, read from config files and command line arguments.
 pub struct Config {
-    opts: Opts,
+    pub opts: Opts,
 }
 
 impl Config {
