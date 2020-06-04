@@ -49,7 +49,7 @@ async fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
 
     // Create a swarm to manage peers and events.
     let mut swarm = {
-        let behaviour = P2shd::new(local_peer_id.clone())?;
+        let behaviour = P2shd::new(local_peer_id.clone(), remote_peer_id.clone())?;
         Swarm::new(transport, behaviour, local_peer_id)
     };
 
@@ -61,7 +61,7 @@ async fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
             swarm.next().await;
         }
     });
-    Ok(swarm)
+    Ok(())
 }
 
 
