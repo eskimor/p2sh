@@ -70,10 +70,11 @@ impl Config {
 
 /// Create configuration directory if not yet present.
 fn create_config_dir(config_path: &Path) -> Result<()> {
+    log::debug!("Creating config dir: {:?}", config_path);
     let config_path_exists = path_exists(config_path)
         .with_context(|| error::ConfigDir::Access(PathBuf::from(config_path)))?;
 
-    if config_path_exists {
+    if !config_path_exists {
         fs::create_dir_all(config_path)
             .with_context(|| error::ConfigDir::Create(PathBuf::from(config_path)))?;
 
@@ -99,6 +100,7 @@ fn gen_or_get_key(key_path: &Path) -> Result<ed25519::Keypair> {
     if key_exists {
         read_key(key_path)
     } else {
+        log::debug!("Writting key: {:?}", key_path);
         gen_and_write_key(key_path)
     }
 }
