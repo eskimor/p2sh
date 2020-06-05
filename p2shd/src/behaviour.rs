@@ -25,8 +25,9 @@ use {
         core::either::EitherOutput,
     },
     std::{
-        task::{Context, Poll},
+        task::{Context, Poll, Waker},
         error,
+        mem
     },
     structopt::StructOpt,
     tokio::sync::{
@@ -41,23 +42,27 @@ pub struct P2shd {
     kad: Kademlia<MemoryStore>,
     mdns: Mdns,
     #[behaviour(ignore)]
+    local_peer: PeerId,
+    #[behaviour(ignore)]
     /// The peer we are supposed to connect to.
     remote_peer: PeerId,
     #[behaviour(ignore)]
-    /// Address of the remote peer as of currently known.
-    remote_addresses: Vec<Multiaddr>,
+    /// Waker of the poll function.
+    waker: Option<Waker>,
 }
 
 impl P2shd {
     pub fn new(local_peer: PeerId, remote_peer: PeerId) -> Result<P2shd> {
         let store = MemoryStore::new(local_peer.clone());
-        let kad = Kademlia::new(local_peer, store);
+        let kad = Kademlia::new(local_peer.clone(), store);
 
         let mdns = Mdns::new()?;
 
         Ok(P2shd {
-            kad, mdns, remote_peer,
-            remote_addresses: Vec::new()
+            kad, mdns,
+            local_peer,
+            remote_peer,
+            waker: None,
         })
     }
 
@@ -76,10 +81,33 @@ impl P2shd {
     //    )
     // }
 
+
+
     fn poll(&mut self, cx: &mut Context, params: &mut impl PollParameters)
         -> Poll<NetworkBehaviourAction<EitherOutput<KademliaHandlerIn<QueryId>, void::Void>, ()>> {
-        println!("huhu, I am in poll!");
-        Poll::Ready(NetworkBehaviourAction::GenerateEvent(()))
+        self.waker = Some(cx.waker().clone());
+        let cached  = self.addresses_of_peer(&self.remote_peer.clone());
+        if cached.is_empty() {
+            self.kad.get_closest_peers(self.remote_peer.clone());
+        }
+        else {
+            println!("Found peer addresses {:?}!", cached);
+            // Poll::Ready(NetworkBehaviourAction::GenerateEvent(()))
+        }
+        Poll::Pending
+    }
+
+    /// Wake if the given peer_id matches `remote_peer`.
+    ///
+    /// Clearing the waker afterwards (only one
+    /// wake).
+    fn wake_on_found(&mut self, peer_id: &PeerId) {
+        if *peer_id == self.remote_peer {
+            match mem::replace(&mut self.waker, None) {
+                None => (),
+                Some(w) => w.wake(),
+            }
+        }
     }
 }
 
@@ -94,6 +122,7 @@ impl NetworkBehaviourEventProcess<MdnsEvent> for P2shd {
                 );
                 self.kad.add_address(&peer_id, multiaddr);
                 self.kad.bootstrap();
+                self.wake_on_found(&peer_id);
             }
         }
     }
@@ -114,9 +143,6 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for P2shd {
             }
             KademliaEvent::GetClosestPeersResult(peers_result) => {
                 log::trace!("Found closest peers: {:?}", &peers_result);
-                for p in self.kad.kbuckets_entries() {
-                    log::trace!("Entry in our buckets: {:?}", p);
-                }
             }
             KademliaEvent::Discovered {
                 peer_id,
@@ -126,6 +152,7 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for P2shd {
                 log::trace!("Discovered peer: {}", peer_id);
                 log::trace!("Addresses of that peer: {:?}", addresses);
                 log::trace!("Connection status: {:?}", ty);
+                self.wake_on_found(&peer_id);
             }
             KademliaEvent::GetRecordResult(Err(err)) => {
                 log::error!("Failed to get record: {:?}", err);

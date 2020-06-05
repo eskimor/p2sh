@@ -31,13 +31,12 @@ async fn main() -> Result<()> {
             Ok(())
         }
         Some(remote_id) => {
-            start(&cfg, remote_id).await?;
-            Ok(())
+            start(&cfg, remote_id)
         }
     }
 }
 
-async fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
+fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
     let local_key = cfg.get_node_key()?;
     let local_peer_id = PeerId::from(local_key.public());
     log::info!("Our peer id: {}", &local_peer_id);
@@ -56,12 +55,25 @@ async fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
     // Listen on all interfaces and whatever port the OS assigns.
     Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/0".parse()?)?;
 
-    tokio::spawn(async move {
+    let mut listening = false;
+    task::block_on(future::poll_fn(move |cx: &mut Context| {
         loop {
-            swarm.next().await;
+            match swarm.poll_next_unpin(cx) {
+                Poll::Ready(Some(event)) => log::info!("{:?}", event),
+                Poll::Ready(None) => return Poll::Ready(Ok(())),
+                Poll::Pending => {
+                    if !listening {
+                        if let Some(a) = Swarm::listeners(&swarm).next() {
+                            log::info!("Listening on {:?}", a);
+                            listening = true;
+                        }
+                    }
+                    break
+                }
+            }
         }
-    });
-    Ok(())
+        Poll::Pending
+    }))
 }
 
 
