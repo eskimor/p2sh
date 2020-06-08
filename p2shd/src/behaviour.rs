@@ -102,6 +102,7 @@ impl P2shd {
                 .filter_map(|x| host_addr_from_multiaddr(x).ok())
                 .filter(|a| a != "127.0.0.1" && a != "::1" && a != "localhost");
             for addr in node_addrs {
+                log::info!("Connecting to: {}", &addr);
                 let r = Command::new("ssh")
                     .arg(&addr)
                     .spawn();
