@@ -9,7 +9,7 @@ edition = "2018"
 [dependencies]
 clap = "2.33.0"
 structopt = "0.3.14"
-libp2p = {version= "0.18", path= "../../rust-libp2p"}
+libp2p = {version= "0.19", path= "../../rust-libp2p"}
 async-std = "1.5.0"
 futures = "0.3.4"
 env_logger = "0.7.1"

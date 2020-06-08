@@ -1,6 +1,4 @@
 use {
-    anyhow,
-    anyhow::Result,
     async_std::{io, task},
     futures::prelude::*,
     libp2p::{
@@ -15,19 +13,22 @@ use {
         mdns::{Mdns, MdnsEvent},
         swarm::{
             NetworkBehaviourEventProcess,
-            NetworkBehaviour,
             NetworkBehaviourAction,
+            NetworkBehaviour,
             PollParameters
         },
         NetworkBehaviour, PeerId, Swarm,
         Multiaddr,
+        multiaddr::Protocol,
         core::connection::ConnectionId,
         core::either::EitherOutput,
     },
     std::{
         task::{Context, Poll, Waker},
-        error,
-        mem
+        mem,
+        process::Command,
+        result,
+        convert::From,
     },
     structopt::StructOpt,
     tokio::sync::{
@@ -35,6 +36,10 @@ use {
     },
 };
 
+pub mod error;
+
+/// Result type with errors specific to this module.
+type Result<T> = result::Result<T, error::P2shd>;
 
 #[derive(NetworkBehaviour)]
 #[behaviour(poll_method = "poll")]
@@ -56,7 +61,7 @@ impl P2shd {
         let store = MemoryStore::new(local_peer.clone());
         let kad = Kademlia::new(local_peer.clone(), store);
 
-        let mdns = Mdns::new()?;
+        let mdns = Mdns::new().map_err(error::P2shd::MdnsInitialization)?;
 
         Ok(P2shd {
             kad, mdns,
@@ -89,12 +94,29 @@ impl P2shd {
         let cached  = self.addresses_of_peer(&self.remote_peer.clone());
         if cached.is_empty() {
             self.kad.get_closest_peers(self.remote_peer.clone());
+            Poll::Pending
         }
         else {
             println!("Found peer addresses {:?}!", cached);
-            // Poll::Ready(NetworkBehaviourAction::GenerateEvent(()))
+            let node_addrs = cached.iter()
+                .filter_map(|x| host_addr_from_multiaddr(x).ok())
+                .filter(|a| a != "127.0.0.1" && a != "::1" && a != "localhost");
+            for addr in node_addrs {
+                let r = Command::new("ssh")
+                    .arg(&addr)
+                    .spawn();
+                match r {
+                    Ok(mut h) => {
+                        h.wait();
+                        std::process::exit(0);
+                    }
+                    Err(e) => {
+                        log::info!("Failed running ssh for {}, with: {:?} ", addr, e);
+                    }
+                }
+            }
+            Poll::Ready(NetworkBehaviourAction::GenerateEvent(()))
         }
-        Poll::Pending
     }
 
     /// Wake if the given peer_id matches `remote_peer`.
@@ -132,18 +154,6 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for P2shd {
     // Called when `kademlia` produces an event.
     fn inject_event(&mut self, message: KademliaEvent) {
         match message {
-            KademliaEvent::GetRecordResult(Ok(result)) => {
-                for Record { key, value, .. } in result.records {
-                    log::trace!(
-                        "Got record {:?} {:?}",
-                        std::str::from_utf8(key.as_ref()).unwrap(),
-                        std::str::from_utf8(&value).unwrap(),
-                    );
-                }
-            }
-            KademliaEvent::GetClosestPeersResult(peers_result) => {
-                log::trace!("Found closest peers: {:?}", &peers_result);
-            }
             KademliaEvent::Discovered {
                 peer_id,
                 addresses,
@@ -154,19 +164,33 @@ impl NetworkBehaviourEventProcess<KademliaEvent> for P2shd {
                 log::trace!("Connection status: {:?}", ty);
                 self.wake_on_found(&peer_id);
             }
-            KademliaEvent::GetRecordResult(Err(err)) => {
-                log::error!("Failed to get record: {:?}", err);
+            _ => { log::debug!("Kademlia event: {:?}", message);
             }
-            KademliaEvent::PutRecordResult(Ok(PutRecordOk { key })) => {
-                log::trace!(
-                    "Successfully put record {:?}",
-                    std::str::from_utf8(key.as_ref()).unwrap()
-                );
-            }
-            KademliaEvent::PutRecordResult(Err(err)) => {
-                log::error!("Failed to put record: {:?}", err);
-            }
-            _ => {}
         }
+    }
+}
+
+/// Get host addr (dns name, IPv4, IPv6 address) from the given multiaddr as `String` ready to be
+/// passed to ssh for example.
+fn host_addr_from_multiaddr(m_addr: &Multiaddr) -> Result<String> {
+    let ips = m_addr
+        .iter()
+        .filter_map(to_host_addr);
+    match ips.collect::<Vec<String>>().as_slice() {
+        [] => Err(error::P2shd::NoIPAddrInMultiaddr(m_addr.clone())),
+        [a] => Ok(a.clone()),
+        _ => Err(error::P2shd::MultipleIPAddrInMultiaddr(m_addr.clone())),
+    }
+}
+
+fn to_host_addr(p: Protocol) -> Option<String> {
+    use Protocol::{*};
+    match p {
+        Dnsaddr(a)  => Some(format!("{}", a)),
+        Dns6(a) => Some(format!("{}", a)),
+        Dns4(a) => Some(format!("{}", a)),
+        Ip4(a)  => Some(format!("{}", a)),
+        Ip6(a)  => Some(format!("{}", a)),
+        _ => None,
     }
 }

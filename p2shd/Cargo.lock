@@ -930,7 +930,7 @@ checksum = "99e85c08494b21a9054e7fe1374a732aeadaff3980b6990b94bfd3a70f690005"
 
 [[package]]
 name = "libp2p"
-version = "0.18.1"
+version = "0.19.1"
 dependencies = [
  "bytes",
  "futures",
@@ -966,7 +966,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "asn1_der",
  "bs58",
@@ -998,7 +998,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core-derive"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "quote",
  "syn",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-deflate"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "flate2",
  "futures",
@@ -1015,7 +1015,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-dns"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -1024,7 +1024,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-floodsub"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "cuckoofilter",
  "fnv",
@@ -1039,7 +1039,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-gossipsub"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "base64",
  "byteorder 1.3.4",
@@ -1062,7 +1062,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -1076,7 +1076,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "arrayvec 0.5.1",
  "bytes",
@@ -1101,7 +1101,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "async-std",
  "data-encoding",
@@ -1121,7 +1121,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mplex"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "bytes",
  "fnv",
@@ -1135,7 +1135,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-noise"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "curve25519-dalek",
  "futures",
@@ -1154,7 +1154,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -1167,7 +1167,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-plaintext"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "bytes",
  "futures",
@@ -1183,7 +1183,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-pnet"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "futures",
  "log",
@@ -1195,7 +1195,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-secio"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "aes-ctr",
  "ctr",
@@ -1223,7 +1223,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm"
-version = "0.18.1"
+version = "0.19.0"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -1236,7 +1236,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tcp"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "async-std",
  "futures",
@@ -1245,11 +1245,12 @@ dependencies = [
  "ipnet",
  "libp2p-core",
  "log",
+ "socket2",
 ]
 
 [[package]]
 name = "libp2p-uds"
-version = "0.18.0"
+version = "0.19.1"
 dependencies = [
  "async-std",
  "futures",
@@ -1259,7 +1260,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-wasm-ext"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "futures",
  "js-sys",
@@ -1271,7 +1272,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-websocket"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "async-tls",
  "bytes",
@@ -1290,7 +1291,7 @@ dependencies = [
 
 [[package]]
 name = "libp2p-yamux"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "futures",
  "libp2p-core",
@@ -1434,9 +1435,9 @@ dependencies = [
 
 [[package]]
 name = "multihash"
-version = "0.10.1"
+version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "47fbc227f7e2b1cb701f95404579ecb2668abbdd3c7ef7a6cbb3cc0d3b236869"
+checksum = "f75db05d738947aa5389863aadafbcf2e509d7ba099dc2ddcdf4fc66bf7a9e03"
 dependencies = [
  "blake2b_simd",
  "blake2s_simd",
@@ -1455,7 +1456,7 @@ checksum = "d8883adfde9756c1d30b0f519c9b8c502a94b41ac62f696453c37c7fc0a958ce"
 
 [[package]]
 name = "multistream-select"
-version = "0.8.0"
+version = "0.8.1"
 dependencies = [
  "bytes",
  "futures",
@@ -1529,14 +1530,12 @@ dependencies = [
 
 [[package]]
 name = "parity-multiaddr"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "arrayref",
  "bs58",
  "byteorder 1.3.4",
  "data-encoding",
- "get_if_addrs",
- "ipnet",
  "multihash",
  "percent-encoding",
  "serde",
@@ -2103,6 +2102,18 @@ dependencies = [
  "sha2",
  "subtle 2.2.2",
  "x25519-dalek",
+]
+
+[[package]]
+name = "socket2"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03088793f677dce356f3ccc2edb1b314ad191ab702a5de3faf49304f7e104918"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "redox_syscall",
+ "winapi 0.3.8",
 ]
 
 [[package]]
