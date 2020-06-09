@@ -59,7 +59,9 @@ pub struct P2shd {
 impl P2shd {
     pub fn new(local_peer: PeerId, remote_peer: PeerId) -> Result<P2shd> {
         let store = MemoryStore::new(local_peer.clone());
-        let kad = Kademlia::new(local_peer.clone(), store);
+        let mut kad = Kademlia::new(local_peer.clone(), store);
+        P2shd::add_bootstrap_nodes(&mut kad);
+        kad.bootstrap();
 
         let mdns = Mdns::new().map_err(error::P2shd::MdnsInitialization)?;
 
@@ -69,6 +71,12 @@ impl P2shd {
             remote_peer,
             waker: None,
         })
+    }
+
+    fn add_bootstrap_nodes(kad: &mut Kademlia<MemoryStore>) {
+        let gm_addr = "/ip4/81.223.86.162/tcp/4001".parse().expect("Bootstrap GM node has invalid format!");
+        let gm_id = "QmScSBHNsTBj6fWjc49RLCz6gMNuZ5bMkTyGwKU4zxE6kc".parse().expect("GM ipfs node id is invalid!");
+        kad.add_address(&gm_id, gm_addr);
     }
 
     // pub async fn find_node(&mut self, peer_id: &PeerId) -> Result<Vec<Multiaddr>> {
