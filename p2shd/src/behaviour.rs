@@ -75,7 +75,7 @@ impl P2shd {
 
     fn add_bootstrap_nodes(kad: &mut Kademlia<MemoryStore>) {
         let gm_addr = "/ip4/81.223.86.162/tcp/4001".parse().expect("Bootstrap GM node has invalid format!");
-        let gm_id = "QmScSBHNsTBj6fWjc49RLCz6gMNuZ5bMkTyGwKU4zxE6kc".parse().expect("GM ipfs node id is invalid!");
+        let gm_id = "12D3KooWRmrTKbuneCQMHAjiGyUTZZu6NZP1XpTMuJJZotTdgYTm".parse().expect("GM ipfs node id is invalid!");
         kad.add_address(&gm_id, gm_addr);
     }
 
