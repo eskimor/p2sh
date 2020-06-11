@@ -54,6 +54,8 @@ pub struct P2shd {
     #[behaviour(ignore)]
     /// Waker of the poll function.
     waker: Option<Waker>,
+    #[behaviour(ignore)]
+    querying: bool,
 }
 
 impl P2shd {
@@ -70,13 +72,17 @@ impl P2shd {
             local_peer,
             remote_peer,
             waker: None,
+            querying: false,
         })
     }
 
     fn add_bootstrap_nodes(kad: &mut Kademlia<MemoryStore>) {
-        let gm_addr = "/ip4/81.223.86.162/tcp/4001".parse().expect("Bootstrap GM node has invalid format!");
+        let gm_addr = "/ip4/81.223.86.162/tcp/22222".parse().expect("Bootstrap GM node has invalid format!");
         let gm_id = "12D3KooWRmrTKbuneCQMHAjiGyUTZZu6NZP1XpTMuJJZotTdgYTm".parse().expect("GM ipfs node id is invalid!");
+        // let gm_ipfs_addr = "/ip4/81.223.86.162/tcp/4001".parse().expect("Bootstrap GM node has invalid format!");
+        // let gm_ipfs_id = "QmPqXagznBmhiX48Nd52XEcf8xpabE8d97ExLz7oWKQvd7".parse().expect("GM ipfs node id is invalid!");
         kad.add_address(&gm_id, gm_addr);
+        // kad.add_address(&gm_ipfs_id, gm_ipfs_addr);
     }
 
     // pub async fn find_node(&mut self, peer_id: &PeerId) -> Result<Vec<Multiaddr>> {
@@ -100,11 +106,14 @@ impl P2shd {
         -> Poll<NetworkBehaviourAction<EitherOutput<KademliaHandlerIn<QueryId>, void::Void>, ()>> {
         self.waker = Some(cx.waker().clone());
         let cached  = self.addresses_of_peer(&self.remote_peer.clone());
-        if cached.is_empty() {
+        if cached.is_empty() && !self.querying {
+            self.querying = true;
             self.kad.get_closest_peers(self.remote_peer.clone());
             Poll::Pending
         }
-        else {
+        else if self.querying {
+            Poll::Pending
+        } else {
             println!("Found peer addresses {:?}!", cached);
             let node_addrs = cached.iter()
                 .filter_map(|x| host_addr_from_multiaddr(x).ok())
