@@ -42,13 +42,13 @@ fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
     log::info!("Our peer id: {}", &local_peer_id);
 
     // Set up a an encrypted DNS-enabled TCP Transport over the Mplex protocol.
-    let transport = build_development_transport(local_key)?;
+    let transport = build_development_transport(local_key.clone())?;
 
     // We create a custom network behaviour that combines Kademlia and mDNS.
 
     // Create a swarm to manage peers and events.
     let mut swarm = {
-        let behaviour = P2shd::new(local_peer_id.clone(), remote_peer_id.clone())?;
+        let behaviour = P2shd::new(&local_key, remote_peer_id.clone())?;
         Swarm::new(transport, behaviour, local_peer_id)
     };
 
