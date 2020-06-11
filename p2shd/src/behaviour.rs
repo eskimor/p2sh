@@ -224,7 +224,8 @@ impl NetworkBehaviourEventProcess<IdentifyEvent> for P2shd {
                 log::trace!("Identified peer: {}", &peer_id);
                 log::trace!("Info for that peer: {:?}", &info);
                 log::trace!("Observed addr: {:?}", &observed_addr);
-                for addr in info.listen_addrs {
+                let valid_addrs = info.listen_addrs.into_iter().filter(|a| !a.to_string().contains("127.0.0.1"));
+                for addr in valid_addrs {
                     self.kad.add_address(&peer_id, addr);
                 }
                 // Don't think this is necessary:
