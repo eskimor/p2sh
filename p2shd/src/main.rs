@@ -63,9 +63,10 @@ fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
                 Poll::Ready(None) => return Poll::Ready(Ok(())),
                 Poll::Pending => {
                     if !listening {
-                        if let Some(a) = Swarm::listeners(&swarm).next() {
+                        let mut listeners = Swarm::listeners(&swarm);
+                        while let Some(a) = listeners.next() {
                             log::info!("Listening on {:?}", a);
-                            listening = true;
+                            listening=true;
                         }
                     }
                     break
