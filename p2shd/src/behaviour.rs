@@ -90,7 +90,7 @@ impl P2shd {
 
     fn add_bootstrap_nodes(kad: &mut Kademlia<MemoryStore>) {
         let gm_addr = "/ip4/81.223.86.162/tcp/22222".parse().expect("Bootstrap GM node has invalid format!");
-        let gm_id = "12D3KooWRmrTKbuneCQMHAjiGyUTZZu6NZP1XpTMuJJZotTdgYTm".parse().expect("GM ipfs node id is invalid!");
+        let gm_id = "12D3KooWRmrTKbuneCQMHAjiGyUTZZu6NZP1XpTMuJJZotTdgYTm".parse().expect("GM node id is invalid!");
         // let gm_ipfs_addr = "/ip4/81.223.86.162/tcp/4001".parse().expect("Bootstrap GM node has invalid format!");
         // let gm_ipfs_id = "QmPqXagznBmhiX48Nd52XEcf8xpabE8d97ExLz7oWKQvd7".parse().expect("GM ipfs node id is invalid!");
         kad.add_address(&gm_id, gm_addr);
@@ -123,36 +123,45 @@ impl P2shd {
                 let q = querying.elapsed()?;
                 Ok(q < Duration::from_secs(2))
             }
-            // if in doubt, just don't re-check, otherwise we will have a busy loop which is quite
-            // bad.
-            get_querying(&self.querying).unwrap_or(true)
+            get_querying(&self.querying).expect("Querying elapsed time failed")
         };
         if cached.is_empty() && !still_querying {
+            log::info!("Query again ...");
             self.querying = SystemTime::now();
             self.kad.get_closest_peers(self.remote_peer.clone());
             Poll::Pending
         }
         else if still_querying {
+            log::info!("Still querying ...");
             Poll::Pending
         } else {
-            println!("Found peer addresses {:?}!", cached);
+            log::info!("Found peer addresses {:?}!", cached);
             let node_addrs = cached.iter()
                 .filter_map(|x| host_addr_from_multiaddr(x).ok())
                 .filter(|a| a != "127.0.0.1" && a != "::1" && a != "localhost");
+            let mut children = Vec::new();
+            children.reserve(cached.len());
             for addr in node_addrs {
                 log::info!("Connecting to: {}", &addr);
                 let r = Command::new("ssh")
                     .arg(&addr)
                     .spawn();
+                children.push((addr,r));
+            }
+            let mut success = false;
+            for (addr,r) in children {
                 match r {
                     Ok(mut h) => {
                         h.wait();
-                        std::process::exit(0);
+                        success = true;
                     }
                     Err(e) => {
                         log::info!("Failed running ssh for {}, with: {:?} ", addr, e);
                     }
                 }
+            }
+            if success {
+                std::process::exit(0);
             }
             Poll::Ready(NetworkBehaviourAction::GenerateEvent(()))
         }
@@ -221,15 +230,16 @@ impl NetworkBehaviourEventProcess<IdentifyEvent> for P2shd {
                 /// The address observed by the peer for the local node.
                 observed_addr,
             } => {
-                log::trace!("Identified peer: {}", &peer_id);
-                log::trace!("Info for that peer: {:?}", &info);
-                log::trace!("Observed addr: {:?}", &observed_addr);
+                log::info!("Identified peer: {}", &peer_id);
+                for a in &info.listen_addrs {
+                    log::info!("  Listen addr for that peer: {:?}", a);
+                }
+                log::info!("  Observed addr: {:?}", &observed_addr);
                 let valid_addrs = info.listen_addrs.into_iter().filter(|a| !a.to_string().contains("127.0.0.1"));
                 for addr in valid_addrs {
                     self.kad.add_address(&peer_id, addr);
                 }
-                // Don't think this is necessary:
-                // self.inject_new_external_addr(&observed_addr);
+                self.inject_new_external_addr(&observed_addr);
             }
             _ => { log::debug!("Kademlia event: {:?}", message);
             }
