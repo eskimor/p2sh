@@ -53,7 +53,7 @@ fn start(cfg: &Config, remote_peer_id: &PeerId) -> Result<()> {
     };
 
     // Listen on all interfaces and whatever port the OS assigns.
-    Swarm::listen_on(&mut swarm, "/ip4/0.0.0.0/tcp/22222".parse()?)?;
+    Swarm::listen_on(&mut swarm, format!("/ip4/0.0.0.0/tcp/{}", cfg.opts.port.unwrap_or(0)).parse()?)?;
 
     let mut listening = false;
     task::block_on(future::poll_fn(move |cx: &mut Context| {

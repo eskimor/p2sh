@@ -29,6 +29,11 @@ pub struct Opts {
     /// own peer id and exit.
     #[structopt()]
     pub remote_id: Option<libp2p::PeerId>,
+
+    /// Port this daemon should listen on.
+    /// By default some randome free port will be used.
+    #[structopt(long, short)]
+    pub port: Option<u16>,
 }
 
 /// Runtime configuration, read from config files and command line arguments.
