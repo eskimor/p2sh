@@ -239,7 +239,7 @@ impl NetworkBehaviourEventProcess<IdentifyEvent> for P2shd {
                 for addr in valid_addrs {
                     self.kad.add_address(&peer_id, addr);
                 }
-                self.inject_new_external_addr(&observed_addr);
+                // self.inject_new_external_addr(&observed_addr);
             }
             _ => { log::debug!("Kademlia event: {:?}", message);
             }
