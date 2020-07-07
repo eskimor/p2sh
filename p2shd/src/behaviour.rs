@@ -53,7 +53,7 @@ type Result<T> = result::Result<T, error::P2shd>;
 #[behaviour(poll_method = "poll")]
 pub struct P2shd {
     kad: Kademlia<MemoryStore>,
-    // mdns: Mdns,
+    mdns: Mdns,
     identify: Identify,
     #[behaviour(ignore)]
     local_peer: PeerId,
@@ -76,10 +76,10 @@ impl P2shd {
         kad.bootstrap();
         let identify = Identify::new("/p2shd/0.1.0".into(), "p2shd-alpha".into(), local_key.public());
 
-        // let mdns = Mdns::new().map_err(error::P2shd::MdnsInitialization)?;
+        let mdns = Mdns::new().map_err(error::P2shd::MdnsInitialization)?;
 
         Ok(P2shd {
-            kad, //mdns,
+            kad, mdns,
             identify,
             local_peer,
             remote_peer,
@@ -115,7 +115,7 @@ impl P2shd {
 
 
     fn poll(&mut self, cx: &mut Context, params: &mut impl PollParameters)
-        -> Poll<NetworkBehaviourAction<EitherOutput<KademliaHandlerIn<QueryId>, ()>, ()>> {
+        -> Poll<NetworkBehaviourAction<EitherOutput<EitherOutput<KademliaHandlerIn<QueryId>, void::Void>, ()>, ()>> {
         self.waker = Some(cx.waker().clone());
         let cached  = self.addresses_of_peer(&self.remote_peer.clone());
         let still_querying = {
@@ -133,6 +133,10 @@ impl P2shd {
         }
         else if still_querying {
             log::info!("Still querying ...");
+            log::debug!("Current query status:");
+            for (i,q) in self.kad.iter_queries().enumerate() {
+                log::debug!("Query[{}]: {:?}", i, q.info());
+            }
             Poll::Pending
         } else {
             log::info!("Found peer addresses {:?}!", cached);
@@ -181,22 +185,22 @@ impl P2shd {
     }
 }
 
-// impl NetworkBehaviourEventProcess<MdnsEvent> for P2shd {
-    // Called when `mdns` produces an event.
-//     fn inject_event(&mut self, event: MdnsEvent) {
-//         if let MdnsEvent::Discovered(list) = event {
-//             for (peer_id, multiaddr) in list {
-//                 log::trace!(
-//                     "MDNS, discovered peer {} with address {}!",
-//                     peer_id, multiaddr
-//                 );
-//                 self.kad.add_address(&peer_id, multiaddr);
-//                 self.kad.bootstrap();
-//                 self.wake_on_found(&peer_id);
-//             }
-//         }
-//     }
-// }
+impl NetworkBehaviourEventProcess<MdnsEvent> for P2shd {
+    //Called when `mdns` produces an event.
+    fn inject_event(&mut self, event: MdnsEvent) {
+        if let MdnsEvent::Discovered(list) = event {
+            for (peer_id, multiaddr) in list {
+                log::trace!(
+                    "MDNS, discovered peer {} with address {}!",
+                    peer_id, multiaddr
+                );
+                self.kad.add_address(&peer_id, multiaddr);
+                self.kad.bootstrap();
+                self.wake_on_found(&peer_id);
+            }
+        }
+    }
+}
 
 impl NetworkBehaviourEventProcess<KademliaEvent> for P2shd {
     // Called when `kademlia` produces an event.
