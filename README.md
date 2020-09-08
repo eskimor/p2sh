@@ -1,4 +1,4 @@
-= p2sh =
+# p2sh
 
 The goal of this project is an alternative secure shell that works over a p2p
 network. Instead of knowing the (dynamic) IP of a node, one only needs to know
@@ -6,7 +6,7 @@ the static id of node. The connection will be made via the p2p network,
 offering features like NAT traversal and robust connections via QUIC.
 
 
-= Status =
+# Status
 
 Right now this project is a PoC - you can connect to public IP addresses via
 their id. But it is rather crude, unreliable and does not yet support NAT
@@ -14,7 +14,7 @@ traversal or QUIC. In fact the actual connection is still made via the plain
 ssh executable at the moment.
 
 
-= Roadmap =
+# Roadmap
 
 1. Replace calling of ssh executable with
    [thrussh](https://crates.io/crates/thrussh/). This is both a preparing
@@ -24,7 +24,7 @@ ssh executable at the moment.
 4. Implement relay nodes in rust-ipfs for NAT traversal.
 5. Implement UDP hole punching in rust-ipfs for NAT traversal.
 
-= Future work =
+# Future work
 
 Initially this project was inspired by [mosh](https://mosh.org/), which is a
 super reliable shell that never dies. We should be able to get the most
